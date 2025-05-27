@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CandyFactory
+﻿namespace CandyFactory
 {
-    class Loader
+    public class Loader
     {
+        public void HandleSugarEvent(object? sender, string message)
+        {
+            if (sender is CandyProductionLine factory)
+            {
+                factory.LoadSugar(50);
+            }
+        }
     }
 }

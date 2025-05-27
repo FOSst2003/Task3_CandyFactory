@@ -1,12 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace CandyFactory
+﻿namespace CandyFactory
 {
-    interface ICandyFactory
+    public interface ICandyFactory
     {
+        string Name { get; }
+        void LoadSugar(int amount);
     }
 }
