@@ -1,80 +1,135 @@
-﻿using System.Collections.ObjectModel;
+﻿using CandyFactory.Models;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Reflection;
+using System.Windows;
 using System.Windows.Input;
 
 namespace CandyFactory
 {
     public class MainViewModel : INotifyPropertyChanged
     {
-        public ObservableCollection<Models.CandyFactoryModel> Factories { get; set; }
+        private int _totalCandyCount;
+        public int TotalCandyCount
+        {
+            get => _totalCandyCount;
+            set { _totalCandyCount = value; OnPropertyChanged(); }
+        }
+
+        public ObservableCollection<CandyFactoryModel> Factories { get; set; }
         public ICommand AddFactoryCommand { get; }
         public ICommand LoadSugarCommand { get; }
+        public ICommand RemoveFactoryCommand { get; }
 
         private int _factoryCounter = 1;
 
         public MainViewModel()
         {
-            Factories = new ObservableCollection<Models.CandyFactoryModel>();
+            Factories = new ObservableCollection<CandyFactoryModel>();
             AddFactoryCommand = new RelayCommand(AddFactory);
             LoadSugarCommand = new RelayCommand(LoadSugar);
+            RemoveFactoryCommand = new RelayCommand(RemoveFactory);
 
-            // Подписка на события через рефлексию
-            try
-            {
-                var factoryType = typeof(CandyProductionLine);
-                var instance = Activator.CreateInstance(factoryType, "Фабрика 1");
-
-                var eventInfo = factoryType.GetEvent("NeedSugar");
-                var method = this.GetType().GetMethod("HandleSugarEvent");
-
-                if (instance != null && eventInfo != null && method != null)
-                {
-                    var handler = Delegate.CreateDelegate(eventInfo.EventHandlerType!, instance, method);
-                    eventInfo.AddEventHandler(instance, handler);
-                }
-            }
-            catch (Exception ex)
-            {
-                // Обработка ошибок рефлексии
-            }
-        }
-
-        public void HandleSugarEvent(object? sender, string message)
-        {
-            // Обработка события
+            AddFactory(null);
         }
 
         private void AddFactory(object? param)
         {
-            var model = new Models.CandyFactoryModel
+            var model = new CandyFactoryModel
             {
                 Name = $"Фабрика {_factoryCounter++}",
                 SugarLevel = 100,
-                Status = "Работает"
+                Status = "Работает",
+                IsWorking = true
             };
 
             var factory = new CandyProductionLine(model.Name);
+            model.Factories.Add(factory);
+
             factory.NeedSugar += (sender, message) =>
             {
-                model.Status = "Нужен сахар";
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    model.Status = "Нужен сахар";
+                });
             };
             factory.NeedRepair += (sender, message) =>
             {
-                model.Status = "Авария";
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    model.Status = "Авария";
+                });
             };
+            factory.RepairFinished += (sender, message) =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    model.Status = "Работает";
+                });
+            };
+            factory.ProduceCandy += (sender, count) =>
+            {
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    model.CandyCount += count;
+                    TotalCandyCount += count;
+                });
+            };
+
+            Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(500);
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        foreach (var f in Factories)
+                        {
+                            foreach (var productionLine in f.Factories)
+                            {
+                                f.SugarLevel = productionLine.SugarLevel;
+                            }
+                        }
+                    });
+                }
+            });
 
             Factories.Add(model);
         }
 
         private void LoadSugar(object? param)
         {
-            if (param is Models.CandyFactoryModel model)
+            if (param is CandyFactoryModel model)
             {
-                var factory = new CandyProductionLine(model.Name);
-                factory.LoadSugar(50);
-                model.SugarLevel = 50;
-                model.Status = "Заправлен";
+                foreach (var factory in model.Factories)
+                {
+                    factory.LoadSugar(100);
+                }
+
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    model.SugarLevel = 100;
+                    model.Status = "Заправлен";
+                });
+
+                Task.Delay(1000).ContinueWith(t =>
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        model.Status = "Работает";
+                    });
+                });
+            }
+        }
+
+        private void RemoveFactory(object? param)
+        {
+            if (param is CandyFactoryModel model)
+            {
+                foreach (var factory in model.Factories)
+                {
+                    factory.Dispose();
+                }
+                Factories.Remove(model);
             }
         }
 
